@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "funnyorm"
+version = "0.1.0"
+description = ""
+authors = ["sjewyr <ganshin.2004@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+psycopg = "^3.2.1"
+psycopg-pool = "^3.2.2"
+firebird-driver = "^1.10.6"
+isort = "^5.13.2"
+ruff = "^0.6.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
