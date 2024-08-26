@@ -1,7 +1,13 @@
-from firebird.driver import (DatabaseError, connect, create_database,
-                             driver_config)
+from firebird.driver import (
+    DatabaseError,
+    connect,
+    create_database,
+    driver_config,
+    types,
+)
 
 from funnyorm.common.driver import Driver
+from funnyorm.drivers.exceptions import ForeignKeyViolationException
 from funnyorm.models.supported_databases import SUPPORTED_DATABASES
 
 
@@ -42,16 +48,30 @@ class FirebirdDriver(Driver):
     def execute(self, query, params=None):
         with self.con.cursor() as cursor:
             results = cursor.execute(query, params)
+            res = None
+            if results._result:
+                res = results.fetchall()
+            if results.description:
+                res = results.description[0][2]
             self.con.commit()
-            if results.rowcount > 0:
-                return results.fetchall()
-            return
+            return res
 
     def get(self, table, columns, condition: dict[str, str] = None):
         return super().get(table, columns, condition)
 
-    def insert(self, table, data):
-        super().insert(table, data)
+    def insert(self, table, data, lookup_field):
+        try:
+            return super().insert(table, data, lookup_field)
+        except types.DatabaseError as e:
+            if "violation of foreign key" in str(e).lower():
+                raise ForeignKeyViolationException(table)
+            raise e
 
-    def update(self, table, data, condition):
-        return super().update(table, data, condition)
+    def update(self, table, data, condition, lookup_field):
+        return super().update(table, data, condition, lookup_field)
+
+    def create_model(self, model):
+        try:
+            return super().create_model(model)
+        except types.DatabaseError:
+            pass

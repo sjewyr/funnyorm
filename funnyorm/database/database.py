@@ -16,7 +16,7 @@ class Database:
 
     def create_models(self):
         for model in self.models:
-            self.driver.execute(model.make_creation_script())
+            self.driver.create_model(model)
 
     def get_db_type(self):
         return self.driver.get_db_type()

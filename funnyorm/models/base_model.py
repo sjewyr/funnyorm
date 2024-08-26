@@ -1,10 +1,13 @@
 from funnyorm.models.exceptions import (
+    ForeignKeyConstraintException,
     FuckMeWhyNoDefaultIsProvidedWhenValueIsNotSetException,
-    MultiplePrimaryKeysException)
+    MultiplePrimaryKeysException,
+)
 from funnyorm.models.fields import Field, IntegerField
 from funnyorm.models.supported_databases import SUPPORTED_DATABASES
 
 
+#
 class ModelMeta(type):
     def __new__(cls, name, bases, dct):
         # Инициализация нового класса
@@ -16,7 +19,16 @@ class ModelMeta(type):
         for key, val in dct.items():
             if isinstance(val, Field):
                 fields[key] = val
-                if val.pk:
+                if val.fk:
+                    if (
+                        not val.fk_to
+                        or not isinstance(val.fk_to, str)
+                        or not issubclass(val.fk, BaseModel)
+                        or not isinstance(
+                            val.fk.fields.get(val.fk_to, None), val.__class__
+                        )
+                    ):
+                        raise ForeignKeyConstraintException(name, key)
                     if cnt:
                         raise MultiplePrimaryKeysException(name)
                     cnt = 1
@@ -51,10 +63,15 @@ class BaseModel(metaclass=ModelMeta):
     def save(self):
         if not self.fields.get(self.lookup_field)._db_value:
             self.__full_update()
-            self.database.driver.insert(
+            self.fields[self.lookup_field].value = self.database.driver.insert(
                 self.table_name,
                 {k: v.value for k, v in self.fields.items() if not v.auto},
+                lookup_field=self.lookup_field,
             )
+            self.fields[self.lookup_field]._db_value = self.fields[
+                self.lookup_field
+            ].value
+
             return
         to_update = {}
         for k, v in self.fields.items():
@@ -102,13 +119,18 @@ class BaseModel(metaclass=ModelMeta):
                 [k for k in cls.fields.keys()],
                 f"{cls.lookup_field}={lookup_value}",
             )[0]
-        except IndexError:
+        except (IndexError, TypeError):
             return None
 
+        if isinstance(res, (list, tuple)):
+            return cls(**{item: value for item, value in zip(cls.fields.keys(), res)})
         obj = cls(**res)
         obj.__full_update()
 
         return obj
+
+    def refresh_from_db(self):
+        pass
 
     @classmethod
     def make_creation_script(cls):
@@ -123,3 +145,11 @@ class BaseModel(metaclass=ModelMeta):
             + ");"
         )
         return " ".join(result)
+
+    @classmethod
+    def get_or_create(cls, value, **kwargs):
+        """Get object or create new if not exists"""
+        obj = cls.get(value)
+        if obj:
+            return obj
+        return cls(**kwargs)

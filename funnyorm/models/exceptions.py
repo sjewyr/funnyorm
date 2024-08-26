@@ -31,3 +31,14 @@ class MultiplePrimaryKeysException(Exception):
         return (
             f"Model {self.model} has multiple primary keys; Which is not supported yet"
         )
+
+
+class ForeignKeyConstraintException(Exception):
+    def __init__(self, model, field, *args: object) -> None:
+        """Exception raised when model has foreign key constraint"""
+        self.model = model
+        self.field = field
+        super().__init__(*args)
+
+    def __str__(self) -> str:
+        return f"Model {self.model} has incorrect foreign key constraint for field {self.field}"
